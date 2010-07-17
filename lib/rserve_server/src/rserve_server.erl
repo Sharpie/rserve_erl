@@ -15,7 +15,7 @@
 -behaviour( gen_server ).
 
 %% API
--export([ start_link/0, start_link/1, stop/0 ]).
+-export([ start_link/0, start_link/1, stop/0, eval/1 ]).
 
 %% gen_server callbacks
 -export([ init/1, terminate/2,
@@ -69,9 +69,12 @@ start_link() ->
   start_link( ?DEFAULT_RSERVE_PORT ).
 
 start_link( Port ) ->
-  gen_server:start_link( {local,?SERVER }, ?MODULE,
+  gen_server:start_link( {local, ?SERVER}, ?MODULE,
     [Port], [] 
   ).
+
+eval( Expression ) ->
+  gen_server:call( ?SERVER, {eval, Expression} ).
 
 stop() ->
   gen_server:cast( ?SERVER, stop ).
@@ -82,27 +85,26 @@ stop() ->
 %%%===================================================================
 
 init( [Port] ) ->
-%  {ok, Socket} -> rserve_connect( Port ),
-  {ok, []}.
+  {ok, Socket} = rserve_connect( Port ),
+  {ok, Socket}. % A little redundant- but the server state will change
 
 
-handle_call( _Request, _From, State ) ->
-  Reply = ok,
-  { reply, Reply, State }.
+handle_call( {eval, Expression}, _From, State ) ->
+  {ok, Response} = rserve_eval( State, Expression ),
+  {reply, Response, State}.
 
 
 handle_cast( stop, State ) ->
-  {stop, ok, State};
+  {stop, normal, State}.
 
-handle_cast( _Msg, State ) ->
-  { noreply, State }.
 
-terminate( _Reason, _State ) ->
-  ok.
+terminate( _Reason, State ) ->
+  rserve_shutdown( State ).
 
 
 handle_info( _Info, State ) ->
   { noreply, State }.
+
 
 code_change( _OldVsn, State, _Extra ) ->
   { ok, State }.
@@ -116,7 +118,7 @@ rserve_connect( Port ) ->
   case gen_tcp:recv( Socket, 32 ) of
 
     {ok, <<"Rsrv0103QAP1", _/binary>>} ->
-      error_logger:info_msg("Connected to Rserve.~2n"),
+      error_logger:info_msg( "Connected to Rserve.~2n" ),
       {ok, Socket};
 
     _ ->
@@ -137,7 +139,7 @@ rserve_eval( Socket, Command ) ->
 
     {ok, <<BitString/binary>>} ->
       io:fwrite("~p~2n",[BitString]),
-      {error,BitString}
+      {error, BitString}
 
   end.
 
@@ -158,6 +160,12 @@ rserve_decode( StringVec ) ->
   ),
   error_logger:info_msg("~2n", []),
   Result.
+
+
+rserve_shutdown( Socket ) ->
+  gen_tcp:close( Socket ),
+  error_logger:info_msg( "Closed socket: ~p~n", [Socket] ),
+  ok.
 
 
 % Tail-recursive function to extract a null-terminated string from a bitstring.
