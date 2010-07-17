@@ -27,9 +27,6 @@
 -define( DEFAULT_RSERVE_PORT, 6311 ).
 
 % Definition for the Rserve TCP link.
-
-
-
 -define( RSERVE_TCP_OPTIONS, [ 
   binary, {packet, 0},% implies that communication will be via the
                       % exchange of binary data. The packet 0 clause
@@ -42,6 +39,8 @@
   ]
 ).
 
+% Template for binary string sent to Rserve to initiate evaluation of
+% a command.
 -define( RSERV_EVAL_COMMAND, <<
   % 16 byte header- integers in little endian format
   3:32/integer-little, % First 4 bytes contain the number 3 which tells
